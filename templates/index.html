@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Sales Assistant | Welcome</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="description" content="Chat with our AI sales assistant for personalized product recommendations and support.">
+</head>
+<body>
+    <div class="login-container">
+        <header>
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                <path d="M14 8.5a2.5 2.5 0 0 0-5 0v1H8a1 1 0 0 0 0 2h8a1 1 0 1 0 0-2h-1v-1a2.5 2.5 0 0 0-1-2"></path>
+            </svg>
+            <h1>Welcome to <span>Sales Assistant</span></h1>
+            <p>Your personal AI assistant to help with product information and recommendations</p>
+        </header>
+        
+        <div class="login-card">
+            <form method="POST" action="/start_conversation">
+                <div class="form-group">
+                    <label for="lead_id">Lead ID</label>
+                    <input type="text" id="lead_id" name="lead_id" placeholder="Enter your ID" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="name">Your Name</label>
+                    <input type="text" id="name" name="name" placeholder="Enter your name" required>
+                </div>
+
+                <button type="submit">
+                    <span>Start Conversation</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </button>
+            </form>
+            
+            {% if message %}
+                <div class="message">
+                    {{ message }}
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="disclaimer">
+            By starting a conversation, you agree to share your information with our Sales Assistant.
+            <br>All data is processed securely and used only to provide you with better recommendations.
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>24/7 Availability</span>
+            </div>
+            <div class="feature">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+                <span>Personalized Recommendations</span>
+            </div>
+            <div class="feature">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Secure & Private</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple animation for login form
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginCard = document.querySelector('.login-card');
+            const header = document.querySelector('header');
+            const features = document.querySelector('.features');
+            
+            setTimeout(() => {
+                header.style.opacity = '1';
+                header.style.transform = 'translateY(0)';
+                
+                setTimeout(() => {
+                    loginCard.style.opacity = '1';
+                    loginCard.style.transform = 'translateY(0)';
+                    
+                    setTimeout(() => {
+                        features.style.opacity = '1';
+                        features.style.transform = 'translateY(0)';
+                    }, 200);
+                }, 200);
+            }, 100);
+        });
+    </script>
+</body>
+</html>
