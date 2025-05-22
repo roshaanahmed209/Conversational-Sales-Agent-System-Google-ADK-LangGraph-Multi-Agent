@@ -4,7 +4,7 @@ A fully functional conversational Sales Agent built with **Google's Agent Develo
 
 ## 📽️ Demo Video
 
-Check out the full demo: *[Insert Video Link]*
+https://drive.google.com/file/d/1wXNgDpLL5MF0-oYVgyex36RzNA9mUs5W/view?usp=sharing
 
 ---
 
