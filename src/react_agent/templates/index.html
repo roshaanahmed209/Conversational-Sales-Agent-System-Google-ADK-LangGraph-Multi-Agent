@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Sales Agent System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- Hero Section -->
+        <div class="text-center mb-5">
+            <div class="mb-4">
+                <i class="fas fa-robot fa-4x text-primary"></i>
+            </div>
+            <h1 class="display-4 fw-bold text-primary mb-3">
+                Welcome to Sales Agent System
+            </h1>
+            <p class="lead text-secondary mb-4">
+                Experience intelligent sales conversations powered by advanced AI. 
+                Our system learns from your interactions to provide personalized product recommendations.
+            </p>
+        </div>
+
+        <!-- Features Cards -->
+        <div class="row mb-5">
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-brain fa-2x text-primary mb-3"></i>
+                        <h5 class="card-title">AI-Powered</h5>
+                        <p class="card-text text-muted">
+                            Advanced natural language processing for intelligent conversations
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-comments fa-2x text-success mb-3"></i>
+                        <h5 class="card-title">Real-time Chat</h5>
+                        <p class="card-text text-muted">
+                            Instant messaging with WebSocket support for seamless experience
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-chart-line fa-2x text-warning mb-3"></i>
+                        <h5 class="card-title">Analytics</h5>
+                        <p class="card-text text-muted">
+                            Comprehensive analytics and insights for better conversions
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Start Conversation Form -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-play-circle me-2"></i>
+                    Start Your Sales Journey
+                </h4>
+            </div>
+            <div class="card-body">
+                {% if message %}
+                <div class="alert alert-warning alert-custom mb-4">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {{ message }}
+                </div>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('start_conversation') }}" id="startForm">
+                    <div class="mb-4">
+                        <label for="name" class="form-label fw-semibold">
+                            <i class="fas fa-user me-2"></i>Your Name
+                        </label>
+                        <input 
+                            type="text" 
+                            class="form-control form-control-lg" 
+                            id="name" 
+                            name="name" 
+                            placeholder="Enter your full name"
+                            required 
+                            minlength="2"
+                        >
+                        <div class="form-text">
+                            This helps us personalize your experience
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="lead_id" class="form-label fw-semibold">
+                            <i class="fas fa-id-card me-2"></i>Lead ID (Optional)
+                        </label>
+                        <input 
+                            type="text" 
+                            class="form-control" 
+                            id="lead_id" 
+                            name="lead_id" 
+                            placeholder="Leave blank for auto-generation"
+                        >
+                        <div class="form-text">
+                            If you have an existing lead ID, enter it here
+                        </div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="startBtn">
+                            <i class="fas fa-rocket me-2"></i>
+                            Start Conversation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="card mt-4 border-0 bg-light">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-1">System Status</h6>
+                        <small class="text-muted">All systems operational</small>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="status-indicator status-online"></span>
+                        <span class="text-success fw-semibold">Online</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Form validation and enhancement
+    $('#startForm').on('submit', function(e) {
+        const name = $('#name').val().trim();
+        
+        if (name.length < 2) {
+            e.preventDefault();
+            alert('Please enter a valid name (at least 2 characters)');
+            return false;
+        }
+        
+        // Show loading state
+        $('#startBtn').prop('disabled', true).html(
+            '<span class="loading-spinner"></span>Starting conversation...'
+        );
+    });
+    
+    // Auto-focus on name field
+    $('#name').focus();
+    
+    // Generate lead ID suggestion
+    $('#name').on('input', function() {
+        const name = $(this).val().trim();
+        if (name && !$('#lead_id').val()) {
+            const suggestion = name.toLowerCase().replace(/\s+/g, '_') + '_' + 
+                             new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            $('#lead_id').attr('placeholder', 'Suggestion: ' + suggestion);
+        }
+    });
+    
+    // Check system health
+    fetch('/api/system/health')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.health) {
+                console.log('System Health:', data.health);
+            }
+        })
+        .catch(error => {
+            console.warn('Could not check system health:', error);
+        });
+});
+</script>
+{% endblock %} 

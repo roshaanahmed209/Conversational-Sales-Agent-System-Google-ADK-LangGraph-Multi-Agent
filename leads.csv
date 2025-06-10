@@ -1,0 +1,4 @@
+lead_id,name,age,country,interest,status
+simple_001,John Doe,25,USA,Technology,confirmed
+simple_002,Roshaan Ahmed,23,Pakistan,Technology,confirmed
+simple_003,Sarah Johnson,28,Canada,Fashion,confirmed

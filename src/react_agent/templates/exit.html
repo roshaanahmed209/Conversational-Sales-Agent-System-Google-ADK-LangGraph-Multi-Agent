@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Thank You - AI Sales Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #ffffff;
+            color: #374151;
+            line-height: 1.6;
+        }
+        
+        .fullscreen-container {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f9fafb;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        
+        .exit-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            text-align: center;
+        }
+        
+        .success-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+        
+        .exit-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 1rem;
+        }
+        
+        .exit-message {
+            color: #6b7280;
+            font-size: 1rem;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        
+        .features-section {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            text-align: left;
+        }
+        
+        .features-title {
+            color: #111827;
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .features-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .features-list li {
+            padding: 0.5rem 0;
+            color: #4b5563;
+            font-size: 0.875rem;
+        }
+        
+        .features-list li:before {
+            content: "✓ ";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 0.75rem;
+            margin: 2rem 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            background: #3b82f6;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background-color 0.2s;
+            font-family: inherit;
+        }
+        
+        .btn:hover {
+            background: #2563eb;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .countdown-section {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 2rem;
+            color: #92400e;
+            font-size: 0.875rem;
+        }
+        
+        .countdown {
+            font-weight: 500;
+        }
+        
+        .support-info {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+            line-height: 1.4;
+        }
+        
+        .support-email {
+            color: #3b82f6;
+            font-weight: 500;
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .exit-card {
+                padding: 2rem;
+                margin: 1rem;
+                width: calc(100% - 2rem);
+            }
+            
+            .exit-title {
+                font-size: 1.75rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+        
+        /* Scrollbar styling for card overflow */
+        .exit-card::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .exit-card::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .exit-card::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+        
+        /* Animation for countdown */
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="fullscreen-container">
+        <div class="exit-card">
+            <span class="success-icon">👋</span>
+            <h1 class="exit-title">Thank You!</h1>
+            
+            {% if message %}
+            <div class="exit-message">
+                {{ message }}
+            </div>
+            {% else %}
+            <div class="exit-message">
+                Thank you for using our AI Sales Assistant! Your conversation has been saved and our team will follow up with you soon.
+            </div>
+            {% endif %}
+            
+            <div class="features-section">
+                <h3 class="features-title">What happens next?</h3>
+                <ul class="features-list">
+                    <li>Your information has been saved securely</li>
+                    <li>Our sales team will review your requirements</li>
+                    <li>You'll receive personalized recommendations</li>
+                    <li>We'll follow up with you soon</li>
+                </ul>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="/" class="btn">
+                    🚀 Start New Conversation
+                </a>
+                <a href="/api/users_with_history" class="btn btn-secondary">
+                    📊 View All Conversations
+                </a>
+            </div>
+            
+            {% if redirect_url %}
+            <div class="countdown-section">
+                <p class="countdown">
+                    You will be automatically redirected to the home page in <span id="countdown" class="pulse" data-redirect-url="{{ redirect_url }}">10</span> seconds.
+                </p>
+                <p style="margin-top: 0.5rem; font-size: 0.75rem;">
+                    Click anywhere to cancel auto-redirect
+                </p>
+            </div>
+            {% endif %}
+            
+            <div class="support-info">
+                Need immediate assistance? Contact our support team at 
+                <span class="support-email">support@company.com</span>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html> 
