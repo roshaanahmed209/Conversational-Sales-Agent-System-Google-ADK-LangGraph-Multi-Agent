@@ -601,6 +601,15 @@ def test():
     """Simple test endpoint without any complex operations"""
     return jsonify({"status": "working", "message": "Server is responding!"})
 
+@app.route('/test_cleanup')
+def test_cleanup():
+    """Test endpoint to manually trigger CSV cleanup"""
+    try:
+        clean_incomplete_csv_entries()
+        return {"status": "success", "message": "CSV cleanup completed successfully"}
+    except Exception as e:
+        return {"status": "error", "message": f"CSV cleanup failed: {str(e)}"}
+
 @app.route('/health')
 def health():
     """Health check endpoint"""

@@ -1,9 +1,4 @@
 lead_id,name,age,country,interest,status
-lead_23178,roshaan,,,,started
-lead_2245,jack,,,,started
-lead_2311,jack,,,,started
-1313,hjlad,,,,started
-lead_2475,wtrr,,,,started
-lead_2475,wtrr,24,Pakistan,A Slim Fit Jeans,confirmed
-lead__0909,imran khan,,,,started
-lead__0909,imran khan,57,Pakistan,Technology,confirmed
+lead_2475,wtrr,24.0,Pakistan,A Slim Fit Jeans,confirmed
+lead__0909,imran khan,57.0,Pakistan,Technology,confirmed
+lead_9101,yasir khanzaada,24.0,Pakistan,Technology,confirmed
