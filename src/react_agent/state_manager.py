@@ -173,7 +173,7 @@ class StateManager:
         with self._lock:
             return len(self._follow_up_queue.get(lead_id, [])) > 0
     
-    def save_conversation_message(self, lead_id: str, role: str, content: str, metadata: Dict = None):
+    def save_conversation_message(self, lead_id: str, role: str, content: str, message_metadata: Dict = None):
         """Save conversation message to database"""
         state = self.get_or_create_conversation_state(lead_id)
         
@@ -182,7 +182,7 @@ class StateManager:
             session_id=state.session_id,
             role=role,
             content=content,
-            metadata=metadata or {},
+            message_metadata=message_metadata or {},
             timestamp=datetime.utcnow()
         )
         

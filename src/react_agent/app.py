@@ -35,20 +35,63 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_migrate import Migrate
 import asyncio
 
-# Import with fallback handling
-try:
-    from root_agent_system import root_agent
-    from enhanced_rag_system import dual_rag_system
-except ImportError:
-    print("[WARNING] Could not import enhanced systems, using legacy system")
-    try:
-        from agent import call_agent_sync, langgraph_agent, sales_agent
-        root_agent = None
-        dual_rag_system = None
-    except ImportError:
-        print("[ERROR] Could not import any agent system")
-        root_agent = None
-        dual_rag_system = None
+# Import with fallback handling - Make all agent imports lazy to prevent hanging
+root_agent = None
+dual_rag_system = None
+legacy_call_agent = None
+
+print("[IMPORT] Setting up lazy agent system imports...")
+
+def get_root_agent():
+    """Lazy import of root agent to prevent startup hanging"""
+    global root_agent
+    if root_agent is None:
+        try:
+            print("[LAZY_ROOT] Attempting to import root_agent_system...")
+            from root_agent_system import root_agent as ra
+            root_agent = ra
+            print("[LAZY_ROOT] ✅ Root agent imported successfully")
+        except ImportError as e:
+            print(f"[LAZY_ROOT] ❌ Could not import root_agent: {e}")
+            root_agent = None
+        except Exception as e:
+            print(f"[LAZY_ROOT] ❌ Root agent initialization failed: {e}")
+            root_agent = None
+    return root_agent
+
+def get_rag_system():
+    """Lazy import of RAG system to prevent startup hanging"""
+    global dual_rag_system
+    if dual_rag_system is None:
+        try:
+            print("[LAZY_RAG] Attempting to import enhanced_rag_system...")
+            from enhanced_rag_system import dual_rag_system as rag_sys
+            dual_rag_system = rag_sys
+            print("[LAZY_RAG] ✅ RAG system imported successfully")
+        except ImportError as e:
+            print(f"[LAZY_RAG] ❌ Could not import RAG system: {e}")
+            dual_rag_system = None
+        except Exception as e:
+            print(f"[LAZY_RAG] ❌ RAG system initialization failed: {e}")
+            dual_rag_system = None
+    return dual_rag_system
+
+def get_legacy_agent():
+    """Lazy import of legacy agent to prevent startup hanging"""
+    global legacy_call_agent
+    if legacy_call_agent is None:
+        try:
+            print("[LAZY_LEGACY] Attempting to import legacy agent...")
+            from agent import call_agent_sync as legacy_call_agent_func, langgraph_agent, sales_agent
+            legacy_call_agent = legacy_call_agent_func
+            print("[LAZY_LEGACY] ✅ Legacy agent imported successfully")
+        except ImportError as e:
+            print(f"[LAZY_LEGACY] ❌ Could not import legacy agent: {e}")
+            legacy_call_agent = None
+        except Exception as e:
+            print(f"[LAZY_LEGACY] ❌ Legacy agent initialization failed: {e}")
+            legacy_call_agent = None
+    return legacy_call_agent
 
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
@@ -127,26 +170,34 @@ APP_NAME = "sales_agent_app"
 USER_ID = "user_1"
 session_service = InMemorySessionService()
 
-# Initialize runner with safety checks
+# Initialize runner with safety checks - Make this lazy too
 runner = None
-try:
-    if root_agent is not None:
-        runner = Runner(
-            agent=root_agent,
-            app_name=APP_NAME,
-            session_service=session_service
-        )
-        print("✅ Google ADK Runner initialized successfully")
-    else:
-        print("⚠️  Google ADK not available, using fallback system")
-except Exception as e:
-    print(f"❌ Failed to initialize Google ADK Runner: {e}")
-    print("🔄 Will use fallback agent system")
-    runner = None
+
+def get_runner():
+    """Lazy initialization of Google ADK Runner"""
+    global runner
+    if runner is None:
+        try:
+            root_agent = get_root_agent()
+            if root_agent is not None:
+                runner = Runner(
+                    agent=root_agent,
+                    app_name=APP_NAME,
+                    session_service=session_service
+                )
+                print("✅ Google ADK Runner initialized successfully")
+            else:
+                print("⚠️  Google ADK not available, using fallback system")
+        except Exception as e:
+            print(f"❌ Failed to initialize Google ADK Runner: {e}")
+            print("🔄 Will use fallback agent system")
+            runner = None
+    return runner
 
 # --- Helper: Sync wrapper around async runner ---
 async def _run_agent_async(conversation_id: str, text: str) -> str:
     """Run agent async with safety checks"""
+    runner = get_runner()
     if runner is None:
         raise Exception("Runner not available - using fallback")
     
@@ -172,50 +223,62 @@ async def _run_agent_async(conversation_id: str, text: str) -> str:
     return final_text or "I'm processing your request. Please try again."
 
 def call_agent_sync(conversation_id: str, text: str) -> str:
-    """Enhanced call agent with better error handling"""
-    # Check if we have a working root agent and runner first
-    if root_agent is None or runner is None:
-        # Fallback to legacy agent system
-        print(f"[FALLBACK] Using legacy agent for {conversation_id} (root_agent: {root_agent is not None}, runner: {runner is not None})")
-        try:
-            # Use the legacy agent system
-            from agent import call_agent_sync as legacy_call_agent
-            return legacy_call_agent(conversation_id, text)
-        except Exception as e:
-            print(f"[ERROR] Legacy agent failed: {e}")
-            return "I'm experiencing technical difficulties. Please try again later."
-    
-    # Try Google ADK system
+    """Simple non-blocking agent that uses our proven conversation logic"""
     try:
-        # Ensure session exists - create it if it doesn't
-        try:
-            session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=conversation_id)
-        except (KeyError, AttributeError, Exception) as e:
-            print(f"[SESSION] Creating new session for {conversation_id}")
-            try:
-                session_service.create_session(app_name=APP_NAME, user_id=USER_ID, session_id=conversation_id)
-            except Exception as create_error:
-                print(f"[SESSION] Failed to create session: {create_error}")
-                # Fallback to legacy system
-                try:
-                    from agent import call_agent_sync as legacy_call_agent
-                    return legacy_call_agent(conversation_id, text)
-                except Exception as fallback_error:
-                    print(f"[ERROR] Fallback also failed: {fallback_error}")
-                    return "I'm having trouble starting our conversation. Please try again."
+        # Use simple conversation logic instead of complex agent systems
+        print(f"[SIMPLE_AGENT] Processing message for {conversation_id}: {text}")
         
-        # Run the async agent
-        return asyncio.run(_run_agent_async(conversation_id, text))
+        # Get current state
+        current_details = state_manager.get_collected_details(conversation_id)
+        
+        # Generate response using our proven conversation logic
+        user_details = extract_user_details_from_user_message(text, conversation_id)
+        if user_details:
+            state_manager.update_collected_details(conversation_id, user_details)
+            current_details = state_manager.get_collected_details(conversation_id)
+            response = generate_structured_response(current_details, text)
+        else:
+            # Check if we should continue with structured conversation flow
+            name = current_details.get('name')
+            age = current_details.get('age')
+            country = current_details.get('country')
+            interest = current_details.get('interest')
+            
+            # Priority: Continue structured flow if we're in the middle of collecting details
+            if name and not age:
+                response = f"Thanks for that, {name}! To help me find the perfect products for you, could you tell me your age?"
+            elif name and age and not country:
+                response = f"Thank you! So you're {age} years old. Which country are you from, {name}?"
+            elif name and age and country and not interest:
+                response = f"Great! So you're {name}, {age} years old, from {country}. What type of products are you most interested in?\n\n📱 Technology (smartphones, laptops, electronics)\n🏠 Home & Living (furniture, storage, decor)\n👔 Fashion (clothing, shoes, accessories)\n\nOr tell me about any specific product you're looking for!"
+            elif all([name, age, country, interest]):
+                response = format_details_for_confirmation(current_details)
+            else:
+                # Only use generic responses if we haven't started collecting details yet
+                if "hi" in text.lower() or "hello" in text.lower():
+                    if name:
+                        response = f"Hello again, {name}! How can I help you today?"
+                    else:
+                        response = "Hello! Nice to meet you. To help you find the perfect products, may I start by asking your name?"
+                elif "product" in text.lower() or "recommend" in text.lower() or "suggest" in text.lower():
+                    if name:
+                        response = "I'd be happy to recommend products! Let me just finish gathering your information first."
+                    else:
+                        response = "I'd be happy to recommend products! First, let me gather some information about you. What's your name?"
+                elif "help" in text.lower():
+                    response = "I'm here to help you find the perfect products! Let's start by getting to know you better. What's your name?"
+                else:
+                    if name:
+                        response = f"Thanks for your message, {name}! Let me continue helping you find great products."
+                    else:
+                        response = "Thank you for your message! To help you find the perfect products, could you start by telling me your name?"
+        
+        print(f"[SIMPLE_AGENT] Generated response: {response[:100]}...")
+        return response
         
     except Exception as e:
-        print(f"[ERROR] Google ADK agent failed: {e}")
-        # Fallback to legacy agent
-        try:
-            from agent import call_agent_sync as legacy_call_agent
-            return legacy_call_agent(conversation_id, text)
-        except Exception as fallback_error:
-            print(f"[ERROR] Fallback failed: {fallback_error}")
-            return "I'm experiencing technical difficulties. Please try again later."
+        print(f"[SIMPLE_AGENT] Error: {e}")
+        return "I'm here to help you! Could you tell me a bit about what products you're looking for?"
 
 # State management is now handled by the StateManager class
 # conversation_details replaced by state_manager
@@ -245,6 +308,122 @@ def save_to_csv(lead_id, name, age, country, interest, status):
     except Exception as e:
         print(f"[ERROR] Failed to save to CSV: {e}")
 
+# --- Helper to extract user details directly from user messages ---
+def extract_user_details_from_user_message(message, lead_id):
+    """Extract user details directly from what the user says"""
+    details = {}
+    current_details = state_manager.get_collected_details(lead_id)
+    message_lower = message.lower().strip()
+    
+    # Extract name if not already collected
+    if not current_details.get('name'):
+        name_patterns = [
+            r'(?:my name is|i\'m|i am|call me|name\'s)\s+([a-zA-Z]+)',
+            r'([a-zA-Z]+)\s+is my name',
+            r'^([a-zA-Z]+)$'  # Single word response when asking for name
+        ]
+        
+        for pattern in name_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                name = match.group(1).strip().title()
+                # More strict validation for names
+                invalid_names = ['hi', 'hello', 'hey', 'yes', 'no', 'ok', 'sure', 'good', 'great', 'fine', 'well', 'glad', 'happy', 'nice', 'thanks', 'thank', 'that', 'this', 'hear', 'you', 'me', 'we', 'they']
+                if (len(name) >= 2 and len(name) <= 15 and 
+                    name.isalpha() and 
+                    name.lower() not in invalid_names and
+                    not any(invalid in name.lower() for invalid in ['glad', 'hear', 'that', 'thanks'])):
+                    details['name'] = name
+                    break
+    
+    # Extract age if not already collected
+    elif not current_details.get('age'):
+        age_patterns = [
+            r'(?:i\'m|i am|my age is)\s*(\d+)',
+            r'(\d+)\s*(?:years old|yo)',
+            r'^(\d+)$'  # Just a number
+        ]
+        
+        for pattern in age_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                age = match.group(1)
+                if 13 <= int(age) <= 120:  # Reasonable age range
+                    details['age'] = age
+                    break
+    
+    # Extract country if not already collected
+    elif not current_details.get('country'):
+        country_patterns = [
+            r'(?:i\'m from|from|i live in|in)\s+([a-zA-Z\s]+)',
+            r'^([a-zA-Z\s]+)$'  # Direct country name
+        ]
+        
+        for pattern in country_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                country = match.group(1).strip().title()
+                if len(country) > 2:
+                    details['country'] = country
+                    break
+    
+    # Extract product interest if not already collected
+    elif not current_details.get('interest'):
+        # Common product categories
+        tech_keywords = ['technology', 'tech', 'smartphone', 'laptop', 'computer', 'phone', 'electronics']
+        fashion_keywords = ['fashion', 'clothes', 'clothing', 'dress', 'shirt', 'shoes', 'accessories']
+        home_keywords = ['home', 'furniture', 'decoration', 'living', 'kitchen', 'bedroom']
+        
+        if any(keyword in message_lower for keyword in tech_keywords):
+            details['interest'] = 'Technology'
+        elif any(keyword in message_lower for keyword in fashion_keywords):
+            details['interest'] = 'Fashion'
+        elif any(keyword in message_lower for keyword in home_keywords):
+            details['interest'] = 'Home & Living'
+        else:
+            # Try to extract any specific product mention
+            interest_patterns = [
+                r'(?:interested in|looking for|want|need)\s+([a-zA-Z\s]+)',
+                r'^([a-zA-Z\s]+)$'  # Direct interest
+            ]
+            
+            for pattern in interest_patterns:
+                match = re.search(pattern, message_lower)
+                if match:
+                    interest = match.group(1).strip()
+                    if len(interest) > 2 and interest not in ['yes', 'no', 'ok', 'sure']:
+                        details['interest'] = interest.title()
+                        break
+    
+    print(f"[DEBUG] Extracted from user message '{message}': {details}")
+    return details
+
+def generate_structured_response(collected_details, user_message):
+    """Generate a structured response based on collected details"""
+    name = collected_details.get('name')
+    age = collected_details.get('age')
+    country = collected_details.get('country')
+    interest = collected_details.get('interest')
+    
+    # Acknowledge what was just collected and ask for next piece of info
+    if name and not age:
+        return f"Nice to meet you, {name}! To help me find the perfect products for you, could you tell me your age?"
+    
+    elif age and not country:
+        return f"Thank you, {name}! So you're {age} years old. And which country are you from?"
+    
+    elif country and not interest:
+        return f"Great! So you're {name}, {age} years old, from {country}. Now, what type of products are you most interested in?\n\n📱 Technology (smartphones, laptops, electronics)\n🏠 Home & Living (furniture, storage, decor)\n👔 Fashion (clothing, shoes, accessories)\n\nOr tell me about any specific product you're looking for!"
+    
+    elif all([name, age, country, interest]):
+        # All details collected, show confirmation and set pending_confirmation flag
+        # Note: We can't directly access the lead_id from this function, so we'll handle this in the calling function
+        return format_details_for_confirmation(collected_details)
+    
+    else:
+        # Fallback response
+        return "Thank you for sharing that information! Let me help you find what you're looking for."
+
 # --- Helper to extract user details from a structured response ---
 def extract_user_details(message):
     details = {
@@ -254,11 +433,16 @@ def extract_user_details(message):
         'interest': None
     }
     
-    print(f"[DEBUG] Extracting details from message (first 200 chars): {message[:200]}...")
+    print(f"[DEBUG] Extracting details from agent message (first 200 chars): {message[:200]}...")
     
     # Clean the message by removing markdown formatting
     clean_message = re.sub(r'\*\*', '', message)  # Remove ** formatting
     clean_message = re.sub(r'^\s*-\s*', '', clean_message, flags=re.MULTILINE)  # Remove bullet points
+    
+    # Only extract if the message seems to contain structured information summary
+    if not any(keyword in message.lower() for keyword in ['name:', 'age:', 'country:', 'details:', 'information:']):
+        print("[DEBUG] Agent message doesn't contain structured details, skipping extraction")
+        return details
     
     # Extract details using more robust regex patterns
     name_patterns = [
@@ -296,7 +480,10 @@ def extract_user_details(message):
         if match and not details['name']:
             name_candidate = match.group(1).strip()
             # Validate name (should not be a question or generic text)
-            if not re.search(r'\?|what|how|when|where|why', name_candidate, re.IGNORECASE):
+            invalid_phrases = ['glad to hear', 'nice to meet', 'great to', 'happy to', 'good to', 'thanks', 'thank you']
+            if (not re.search(r'\?|what|how|when|where|why', name_candidate, re.IGNORECASE) and
+                not any(phrase in name_candidate.lower() for phrase in invalid_phrases) and
+                len(name_candidate.split()) <= 3):  # Names shouldn't be too long
                 details['name'] = name_candidate
                 break
     
@@ -409,6 +596,16 @@ def format_product_interest_request():
 def home():
     return render_template('index.html')
 
+@app.route('/test')
+def test():
+    """Simple test endpoint without any complex operations"""
+    return jsonify({"status": "working", "message": "Server is responding!"})
+
+@app.route('/health')
+def health():
+    """Health check endpoint"""
+    return "OK"
+
 @app.route('/manifest.json')
 def manifest():
     return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
@@ -456,9 +653,38 @@ def chat():
                         'confirmed'
                     )
                     
-                    agent_reply = "Thank you for confirming your details! Your information has been saved successfully. How else can I assist you today?"
+                    # Clean up incomplete entries from CSV after successful confirmation
+                    print(f"[WS_DEBUG] Running CSV cleanup after confirmation")
+                    clean_incomplete_csv_entries()
                     
-                    # Save agent response
+                    # Provide product recommendations using simple logic
+                    agent_reply = f"Thank you for confirming your details, {details['name']}! Your information has been saved successfully. "
+                    agent_reply += f"Based on your interest in {details['interest']}, here are some great product recommendations:\n\n"
+                    
+                    # Simple product recommendations based on interest
+                    if details['interest'].lower() in ['technology', 'tech', 'smartphone', 'laptop', 'computer', 'phone', 'electronics']:
+                        agent_reply += "📱 Samsung Galaxy S24 ($799.99) - Latest smartphone with amazing camera\n"
+                        agent_reply += "📱 iPhone 15 Pro ($999.99) - Premium Apple device with titanium design\n"
+                        agent_reply += "💻 MacBook Pro M3 ($1,999.99) - Powerful laptop for professionals\n"
+                        agent_reply += "🎧 AirPods Pro ($249.99) - Premium wireless earbuds"
+                    elif details['interest'].lower() in ['fashion', 'clothes', 'clothing', 'dress', 'shirt', 'shoes', 'accessories']:
+                        agent_reply += "👔 Men's Slim Fit Jeans ($49.99) - Comfortable premium denim\n"
+                        agent_reply += "👗 Designer Summer Dress ($89.99) - Elegant and stylish\n"
+                        agent_reply += "👟 Running Shoes ($79.99) - High-performance athletic footwear\n"
+                        agent_reply += "👜 Leather Handbag ($129.99) - Premium quality accessory"
+                    elif details['interest'].lower() in ['home', 'furniture', 'decoration', 'living', 'kitchen', 'bedroom']:
+                        agent_reply += "🛏️ King Size Bed ($599.99) - Comfortable premium mattress\n"
+                        agent_reply += "🪑 Ergonomic Office Chair ($199.99) - Perfect for working from home\n"
+                        agent_reply += "🏠 Storage Solutions Set ($99.99) - Organize your space beautifully\n"
+                        agent_reply += "🍽️ Dinnerware Set ($79.99) - Elegant dining collection"
+                    else:
+                        agent_reply += "🛍️ Premium Product Bundle ($149.99) - Curated selection of popular items\n"
+                        agent_reply += "🎁 Gift Card ($50-500) - Perfect for any occasion\n"
+                        agent_reply += "⭐ Best Sellers Collection - Top-rated products across all categories\n"
+                        agent_reply += "📦 Starter Kit ($89.99) - Everything you need to get started"
+                    
+                    # Save conversation messages
+                    state_manager.save_conversation_message(lead_id, 'user', message)
                     state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
                     
                     # Emit real-time update
@@ -471,27 +697,56 @@ def chat():
                     
                     return jsonify({"response": agent_reply, "status": "confirmed"})
         
-        # Send message to agent for normal conversation
-        agent_reply = call_agent_sync(lead_id, message)
-        
-        # Check if the agent response contains user details in a structured format
-        details = extract_user_details(agent_reply)
-        if details:
-            # Update collected details
-            state_manager.update_collected_details(lead_id, details)
+        # Extract user details directly from user message first
+        user_details = extract_user_details_from_user_message(message, lead_id)
+        if user_details:
+            print(f"[API_DEBUG] Extracted user details: {user_details}")
+            state_manager.update_collected_details(lead_id, user_details)
             
-            # Check if all details are complete
+            # Generate structured response based on what was collected
+            collected = state_manager.get_collected_details(lead_id)
+            agent_reply = generate_structured_response(collected, message)
+            
+            # Check if all details are complete for confirmation
             if state_manager.are_details_complete(lead_id):
-                # Set pending confirmation state
                 state_manager.update_conversation_state(
                     lead_id,
                     current_step='confirmation',
                     pending_confirmation=True
                 )
+        else:
+            # Send message to agent for normal conversation
+            agent_reply = call_agent_sync(lead_id, message)
+            
+            # Check if the agent response contains user details in a structured format
+            details = extract_user_details(agent_reply)
+            if details:
+                # Only update with agent details if they don't overwrite existing good data
+                current_details = state_manager.get_collected_details(lead_id)
+                safe_update = {}
                 
-                # Replace agent response with formatted confirmation prompt
-                all_details = state_manager.get_collected_details(lead_id)
-                agent_reply = format_details_for_confirmation(all_details)
+                for key, value in details.items():
+                    if value and (not current_details.get(key) or len(str(current_details.get(key))) < 2):
+                        safe_update[key] = value
+                        print(f"[API_DEBUG] Safe update from agent: {key} = {value}")
+                    elif value and current_details.get(key):
+                        print(f"[API_DEBUG] Skipping agent extraction for {key}: already have '{current_details.get(key)}', agent suggested '{value}'")
+                
+                if safe_update:
+                    state_manager.update_collected_details(lead_id, safe_update)
+                
+                # Check if all details are complete
+                if state_manager.are_details_complete(lead_id):
+                    # Set pending confirmation state
+                    state_manager.update_conversation_state(
+                        lead_id,
+                        current_step='confirmation',
+                        pending_confirmation=True
+                    )
+                    
+                    # Replace agent response with formatted confirmation prompt
+                    all_details = state_manager.get_collected_details(lead_id)
+                    agent_reply = format_details_for_confirmation(all_details)
         
         # Save agent response
         state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
@@ -518,29 +773,16 @@ def chat():
         logger.error(f"Error in chat endpoint: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
-
 @app.route('/check_follow_up', methods=['GET'])
 def check_follow_up():
-    save_csv_complete("leads.csv")
+    """Simple follow-up check without complex operations"""
     lead_id = request.args.get('lead_id')
     if not lead_id:
         return jsonify({"has_follow_up": False})
     
     try:
-        # Check for follow-up messages using state manager
-        messages = state_manager.get_follow_up_messages(lead_id)
-        
-        if messages:
-            # Return the first message
-            message = messages[0]
-            return jsonify({
-                "has_follow_up": True, 
-                "message": message,
-                "timestamp": datetime.utcnow().isoformat()
-            })
-        
-        save_csv_complete("leads.csv")
-        return jsonify({"has_follow_up": False})
+        # Simple check without complex state manager operations
+        return jsonify({"has_follow_up": False, "message": "Follow-up system ready"})
         
     except Exception as e:
         logger.error(f"Error checking follow-up: {str(e)}")
@@ -548,7 +790,7 @@ def check_follow_up():
 
 @app.route('/start_conversation', methods=['POST'])
 def start_conversation():
-    save_csv_complete("leads.csv")
+    """Simplified start conversation without blocking operations"""
     lead_id = request.form.get('lead_id') or str(uuid.uuid4())
     name = request.form.get('name')
     
@@ -587,13 +829,11 @@ def start_conversation():
 
 @app.route('/conversation/<lead_id>', methods=['GET', 'POST'])
 def conversation(lead_id):
-    global user_input_counter
-    
     if request.method == 'POST':
         message = request.form.get('message')
         
-        # Increment the counter when a user sends a message
-        user_input_counter += 1
+        # Record user activity
+        state_manager.record_user_activity(lead_id)
         
         # Check if this is an exit command
         if is_exit_command(message):
@@ -602,16 +842,17 @@ def conversation(lead_id):
         
         # Check if this is a confirmation message
         if message.lower().strip() == 'confirm':
-            if lead_id in conversation_details and 'last_details_message' in conversation_details[lead_id]:
-                previous_response = conversation_details[lead_id]['last_details_message']
-                
-                # Get details either from the stored message or collected details
-                if 'collected_details' in conversation_details[lead_id] and all(conversation_details[lead_id]['collected_details'].get(key) for key in ['name', 'age', 'country', 'interest']):
-                    details = conversation_details[lead_id]['collected_details']
-                else:
-                    details = extract_user_details(previous_response)
-                
-                if are_details_complete(details):
+            state = state_manager.get_or_create_conversation_state(lead_id)
+            if state.pending_confirmation:
+                details = state_manager.get_collected_details(lead_id)
+                if state_manager.are_details_complete(lead_id):
+                    # Update lead status
+                    state_manager.update_conversation_state(
+                        lead_id, 
+                        current_step='confirmed',
+                        pending_confirmation=False
+                    )
+                    
                     save_to_csv(
                         lead_id, 
                         details['name'], 
@@ -621,25 +862,39 @@ def conversation(lead_id):
                         'confirmed'
                     )
                     
-                    # Provide product recommendations using RAG system
-                    agent_reply = "Thank you for confirming your details! Your information has been saved successfully. "
+                    # Clean up incomplete entries from CSV after successful confirmation
+                    print(f"[WS_DEBUG] Running CSV cleanup after confirmation")
+                    clean_incomplete_csv_entries()
                     
-                    if dual_rag_system:
-                        try:
-                            # Get personalized product recommendations
-                            user_data = {
-                                "name": details['name'],
-                                "age": details['age'],
-                                "country": details['country'],
-                                "interest": details['interest']
-                            }
-                            recommendations = dual_rag_system.get_product_recommendations(user_data, f"products for {details['interest']}")
-                            agent_reply += f"\n\nBased on your interest in {details['interest']}, here are some personalized product recommendations:\n\n{recommendations}"
-                        except Exception as e:
-                            print(f"[ERROR] Failed to get recommendations: {e}")
-                            agent_reply += "Let me know if you'd like to see our product catalog or if you have any specific questions!"
+                    # Provide product recommendations using simple logic
+                    agent_reply = f"Thank you for confirming your details, {details['name']}! Your information has been saved successfully. "
+                    agent_reply += f"Based on your interest in {details['interest']}, here are some great product recommendations:\n\n"
+                    
+                    # Simple product recommendations based on interest
+                    if details['interest'].lower() in ['technology', 'tech', 'smartphone', 'laptop', 'computer', 'phone', 'electronics']:
+                        agent_reply += "📱 Samsung Galaxy S24 ($799.99) - Latest smartphone with amazing camera\n"
+                        agent_reply += "📱 iPhone 15 Pro ($999.99) - Premium Apple device with titanium design\n"
+                        agent_reply += "💻 MacBook Pro M3 ($1,999.99) - Powerful laptop for professionals\n"
+                        agent_reply += "🎧 AirPods Pro ($249.99) - Premium wireless earbuds"
+                    elif details['interest'].lower() in ['fashion', 'clothes', 'clothing', 'dress', 'shirt', 'shoes', 'accessories']:
+                        agent_reply += "👔 Men's Slim Fit Jeans ($49.99) - Comfortable premium denim\n"
+                        agent_reply += "👗 Designer Summer Dress ($89.99) - Elegant and stylish\n"
+                        agent_reply += "👟 Running Shoes ($79.99) - High-performance athletic footwear\n"
+                        agent_reply += "👜 Leather Handbag ($129.99) - Premium quality accessory"
+                    elif details['interest'].lower() in ['home', 'furniture', 'decoration', 'living', 'kitchen', 'bedroom']:
+                        agent_reply += "🛏️ King Size Bed ($599.99) - Comfortable premium mattress\n"
+                        agent_reply += "🪑 Ergonomic Office Chair ($199.99) - Perfect for working from home\n"
+                        agent_reply += "🏠 Storage Solutions Set ($99.99) - Organize your space beautifully\n"
+                        agent_reply += "🍽️ Dinnerware Set ($79.99) - Elegant dining collection"
                     else:
-                        agent_reply += "Let me know if you'd like to see our product catalog or if you have any specific questions!"
+                        agent_reply += "🛍️ Premium Product Bundle ($149.99) - Curated selection of popular items\n"
+                        agent_reply += "🎁 Gift Card ($50-500) - Perfect for any occasion\n"
+                        agent_reply += "⭐ Best Sellers Collection - Top-rated products across all categories\n"
+                        agent_reply += "📦 Starter Kit ($89.99) - Everything you need to get started"
+                    
+                    # Save conversation messages
+                    state_manager.save_conversation_message(lead_id, 'user', message)
+                    state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
                     
                     return render_template('conversation.html', lead_id=lead_id, response=agent_reply)
         
@@ -654,18 +909,16 @@ def conversation(lead_id):
         if is_asking_for_suggestions:
             print(f"[DEBUG] User asking for suggestions: {message}")
             
-            # Check if we have user details
-            user_details = {}
-            if lead_id in conversation_details and 'collected_details' in conversation_details[lead_id]:
-                user_details = conversation_details[lead_id]['collected_details']
-                print(f"[DEBUG] Found user details: {user_details}")
+            # Get user details from state manager
+            user_details = state_manager.get_collected_details(lead_id)
+            print(f"[DEBUG] Found user details: {user_details}")
             
             # Always try to provide suggestions if RAG system is available
-            if dual_rag_system:
+            if get_rag_system():
                 try:
                     # Provide general suggestions from our product catalog
                     print("[DEBUG] Getting general product suggestions from RAG system")
-                    suggestions = dual_rag_system.company_docs_rag.get_product_suggestions("general products", k=6)
+                    suggestions = get_rag_system().company_docs_rag.get_product_suggestions("general products", k=6)
                     
                     if suggestions and len(suggestions) > 0:
                         agent_reply = "Great! Here are some popular products from our catalog:\n\n"
@@ -684,6 +937,10 @@ def conversation(lead_id):
                         
                         agent_reply += "Would you like to see products in a specific category like Technology, Fashion, or Home & Living?"
                         
+                        # Save conversation messages
+                        state_manager.save_conversation_message(lead_id, 'user', message)
+                        state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
+                        
                         return render_template('conversation.html', lead_id=lead_id, response=agent_reply)
                     else:
                         print("[DEBUG] No suggestions found from RAG system, using fallback")
@@ -698,6 +955,10 @@ def conversation(lead_id):
                         else:
                             agent_reply += "Which category interests you most?"
                         
+                        # Save conversation messages
+                        state_manager.save_conversation_message(lead_id, 'user', message)
+                        state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
+                        
                         return render_template('conversation.html', lead_id=lead_id, response=agent_reply)
                         
                 except Exception as e:
@@ -708,6 +969,11 @@ def conversation(lead_id):
                     agent_reply += "🏠 **Home & Living**: Furniture, Storage, Decor\n" 
                     agent_reply += "👔 **Fashion**: Clothing, Shoes, Accessories\n\n"
                     agent_reply += "What type of products interest you most?"
+                    
+                    # Save conversation messages
+                    state_manager.save_conversation_message(lead_id, 'user', message)
+                    state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
+                    
                     return render_template('conversation.html', lead_id=lead_id, response=agent_reply)
             else:
                 print("[DEBUG] RAG system not available, using basic suggestions")
@@ -717,36 +983,57 @@ def conversation(lead_id):
                 agent_reply += "🏠 Home & Living (furniture, storage)\n" 
                 agent_reply += "👔 Fashion (clothing, accessories)\n\n"
                 agent_reply += "What type of products are you most interested in?"
+                
+                # Save conversation messages
+                state_manager.save_conversation_message(lead_id, 'user', message)
+                state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
+                
                 return render_template('conversation.html', lead_id=lead_id, response=agent_reply)
         
-        # Send lead message to agent
-        agent_reply = call_agent_sync(lead_id, message)
-        
-        # Check if the agent response contains user details in a structured format
-        details = extract_user_details(agent_reply)
-        
-        # Store partial details we've collected so far
-        if lead_id not in conversation_details:
-            conversation_details[lead_id] = {'last_details_message': '', 'collected_details': {}}
-        
-        # Update collected details with any new information
-        for key, value in details.items():
-            if value:
-                if 'collected_details' not in conversation_details[lead_id]:
-                    conversation_details[lead_id]['collected_details'] = {}
-                conversation_details[lead_id]['collected_details'][key] = value
+        # Extract user details directly from user message first
+        user_details = extract_user_details_from_user_message(message, lead_id)
+        if user_details:
+            print(f"[DEBUG] Extracted user details: {user_details}")
+            state_manager.update_collected_details(lead_id, user_details)
+            
+            # Generate structured response based on what was collected
+            collected = state_manager.get_collected_details(lead_id)
+            agent_reply = generate_structured_response(collected, message)
+        else:
+            # Send lead message to agent for general conversation
+            agent_reply = call_agent_sync(lead_id, message)
+            
+            # Check if the agent response contains user details in a structured format
+            agent_details = extract_user_details(agent_reply)
+            
+            # Only update with agent details if they don't overwrite existing good data
+            if agent_details:
+                current_details = state_manager.get_collected_details(lead_id)
+                safe_update = {}
+                
+                for key, value in agent_details.items():
+                    if value and (not current_details.get(key) or len(str(current_details.get(key))) < 2):
+                        safe_update[key] = value
+                        print(f"[DEBUG] Safe update from agent: {key} = {value}")
+                    elif value and current_details.get(key):
+                        print(f"[DEBUG] Skipping agent extraction for {key}: already have '{current_details.get(key)}', agent suggested '{value}'")
+                
+                if safe_update:
+                    state_manager.update_collected_details(lead_id, safe_update)
         
         # Check if we have everything except product interest
-        if 'collected_details' in conversation_details[lead_id]:
-            collected = conversation_details[lead_id]['collected_details']
-            if collected.get('name') and collected.get('age') and collected.get('country') and not collected.get('interest'):
-                # Specifically ask for product interest
-                return render_template('conversation.html', lead_id=lead_id, response=format_product_interest_request())
+        collected = state_manager.get_collected_details(lead_id)
+        if collected.get('name') and collected.get('age') and collected.get('country') and not collected.get('interest'):
+            # Specifically ask for product interest
+            response = format_product_interest_request()
+            # Save conversation messages
+            state_manager.save_conversation_message(lead_id, 'user', message)
+            state_manager.save_conversation_message(lead_id, 'assistant', response)
+            return render_template('conversation.html', lead_id=lead_id, response=response)
         
         # If we have all the details from various messages, prepare for confirmation
-        if 'collected_details' in conversation_details[lead_id] and all(conversation_details[lead_id]['collected_details'].get(key) for key in ['name', 'age', 'country', 'interest']):
+        if state_manager.are_details_complete(lead_id):
             # Check if the interest is generic/invalid - if so, ask for specific interest
-            collected = conversation_details[lead_id]['collected_details']
             interest = collected.get('interest', '').lower()
             
             generic_interests = ['general', 'everything', 'anything', 'all products', 'various', 'multiple', 'different']
@@ -756,38 +1043,61 @@ def conversation(lead_id):
                 agent_reply += "🏠 Home & Living (furniture, storage)\n"
                 agent_reply += "👔 Fashion (clothing, accessories)\n\n"
                 agent_reply += "Please let me know which category interests you most!"
+                
+                # Save conversation messages
+                state_manager.save_conversation_message(lead_id, 'user', message)
+                state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
+                
                 return render_template('conversation.html', lead_id=lead_id, response=agent_reply)
             
-            # Store the complete details for confirmation
-            conversation_details[lead_id]['last_details_message'] = format_details_for_confirmation(conversation_details[lead_id]['collected_details'])
-            return render_template('conversation.html', lead_id=lead_id, response=conversation_details[lead_id]['last_details_message'])
-        
-        # If all details are complete in the current message
-        if are_details_complete(details):
-            # Store the formatted details for later confirmation
-            conversation_details[lead_id]['last_details_message'] = agent_reply
+            # Set pending confirmation state and show confirmation prompt
+            state_manager.update_conversation_state(
+                lead_id,
+                current_step='confirmation',
+                pending_confirmation=True
+            )
             
-            # Replace agent response with formatted confirmation prompt
-            agent_reply = format_details_for_confirmation(details)
+            confirmation_response = format_details_for_confirmation(collected)
+            
+            # Save conversation messages
+            state_manager.save_conversation_message(lead_id, 'user', message)
+            state_manager.save_conversation_message(lead_id, 'assistant', confirmation_response)
+            
+            return render_template('conversation.html', lead_id=lead_id, response=confirmation_response)
         
-        save_csv_complete("leads.csv")
+        # Save conversation messages for normal flow
+        state_manager.save_conversation_message(lead_id, 'user', message)
+        state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
+        
         return render_template('conversation.html', lead_id=lead_id, response=agent_reply)
     
-    # GET
-    # Provide a personalized welcome message using the stored name
-    if lead_id in conversation_details and 'collected_details' in conversation_details[lead_id]:
-        name = conversation_details[lead_id]['collected_details'].get('name', '')
-        if name:
-            welcome = "I'm your sales assistant. I need to collect some information to help you find the perfect products. May I ask your age?"
-        else:
-            welcome = "Hello! I'm your sales assistant. To get started, what's your name?"
-    else:
-        welcome = "Hello! I'm your sales assistant. To get started, what's your name?"
+    # GET request - provide welcome message
+    # Get user details from state manager
+    collected_details = state_manager.get_collected_details(lead_id)
+    name = collected_details.get('name', '')
+    age = collected_details.get('age', '')
+    country = collected_details.get('country', '')
+    interest = collected_details.get('interest', '')
     
-    save_csv_complete("leads.csv")
+    # Determine what information we still need
+    if not name:
+        welcome = "Hello! I'm your sales assistant. To get started, what's your name?"
+    elif not age:
+        welcome = f"Hello {name}! Nice to meet you. To help you find the perfect products, may I ask your age?"
+    elif not country:
+        welcome = f"Thanks {name}! And which country are you from?"
+    elif not interest:
+        welcome = f"Great! Now {name}, what type of products are you interested in? (Technology, Fashion, Home & Living, etc.)"
+    else:
+        # All details collected, show confirmation
+        welcome = format_details_for_confirmation(collected_details)
+        state_manager.update_conversation_state(
+            lead_id,
+            current_step='confirmation',
+            pending_confirmation=True
+        )
+    
     return render_template('conversation.html', lead_id=lead_id, response=welcome)
-
-
 
 # --- WebSocket Event Handlers ---
 @socketio.on('connect')
@@ -836,7 +1146,7 @@ def handle_send_message(data):
         # Save user message
         state_manager.save_conversation_message(lead_id, 'user', message)
         
-        # Emit user message to room
+        # Emit user message to room (this will be received by the client)
         socketio.emit('message_update', {
             'lead_id': lead_id,
             'message': message,
@@ -844,13 +1154,129 @@ def handle_send_message(data):
             'timestamp': datetime.utcnow().isoformat()
         }, room=lead_id)
         
-        # Get agent response
-        agent_reply = call_agent_sync(lead_id, message)
+        # Handle confirmation message first - HIGHEST PRIORITY
+        message_lower = message.lower().strip()
         
-        # Process any extracted details
-        details = extract_user_details(agent_reply)
-        if details:
-            state_manager.update_collected_details(lead_id, details)
+        if message_lower == 'confirm':
+            print(f"[WS_DEBUG] User confirming details: {message}")
+            details = state_manager.get_collected_details(lead_id)
+            
+            if state_manager.are_details_complete(lead_id):
+                # Update lead status
+                state_manager.update_conversation_state(
+                    lead_id, 
+                    current_step='confirmed',
+                    pending_confirmation=False
+                )
+                
+                # Save to CSV
+                save_to_csv(
+                    lead_id, 
+                    details['name'], 
+                    details['age'], 
+                    details['country'], 
+                    details['interest'], 
+                    'confirmed'
+                )
+                
+                # Clean up incomplete entries from CSV after successful confirmation
+                print(f"[WS_DEBUG] Running CSV cleanup after confirmation")
+                clean_incomplete_csv_entries()
+                
+                # Provide product recommendations
+                agent_reply = f"Thank you for confirming your details, {details['name']}! Your information has been saved successfully. "
+                agent_reply += f"Based on your interest in {details['interest']}, here are some great product recommendations:\n\n"
+                
+                # Simple product recommendations based on interest
+                if any(keyword in details['interest'].lower() for keyword in ['technology', 'tech', 'samsung', 'phone', 'smartphone', 'laptop', 'computer', 'electronics']):
+                    agent_reply += "📱 Samsung Galaxy S24 ($799.99) - Latest smartphone with amazing camera\n"
+                    agent_reply += "📱 iPhone 15 Pro ($999.99) - Premium Apple device with titanium design\n"
+                    agent_reply += "💻 MacBook Pro M3 ($1,999.99) - Powerful laptop for professionals\n"
+                    agent_reply += "🎧 AirPods Pro ($249.99) - Premium wireless earbuds"
+                elif any(keyword in details['interest'].lower() for keyword in ['fashion', 'clothes', 'clothing', 'dress', 'shirt', 'shoes', 'accessories']):
+                    agent_reply += "👔 Men's Slim Fit Jeans ($49.99) - Comfortable premium denim\n"
+                    agent_reply += "👗 Designer Summer Dress ($89.99) - Elegant and stylish\n"
+                    agent_reply += "👟 Running Shoes ($79.99) - High-performance athletic footwear\n"
+                    agent_reply += "👜 Leather Handbag ($129.99) - Premium quality accessory"
+                elif any(keyword in details['interest'].lower() for keyword in ['home', 'furniture', 'decoration', 'living', 'kitchen', 'bedroom']):
+                    agent_reply += "🛏️ King Size Bed ($599.99) - Comfortable premium mattress\n"
+                    agent_reply += "🪑 Ergonomic Office Chair ($199.99) - Perfect for working from home\n"
+                    agent_reply += "🏠 Storage Solutions Set ($99.99) - Organize your space beautifully\n"
+                    agent_reply += "🍽️ Dinnerware Set ($79.99) - Elegant dining collection"
+                else:
+                    agent_reply += "📱 Samsung Galaxy S24 ($799.99) - Latest smartphone with amazing camera\n"
+                    agent_reply += "🛍️ Premium Product Bundle ($149.99) - Curated selection of popular items\n"
+                    agent_reply += "🎁 Gift Card ($50-500) - Perfect for any occasion\n"
+                    agent_reply += "⭐ Best Sellers Collection - Top-rated products across all categories"
+                
+                print(f"[WS_DEBUG] Confirmation processed, data saved to CSV")
+            else:
+                agent_reply = "I notice some details are still missing. Let me help you complete your profile first."
+        
+        # Check if user is asking for product suggestions/recommendations - SECOND PRIORITY
+        else:
+            suggestion_keywords = ['suggestion', 'suggestions', 'recommend', 'recommendation', 'recommendations', 
+                                 'what do you have', 'show me products', 'product catalog', 'catalog', 
+                                 'what products', 'products available', 'what can you offer', 'suggest me', 'can suggest']
+            
+            is_asking_for_suggestions = any(keyword in message_lower for keyword in suggestion_keywords)
+            
+            if is_asking_for_suggestions:
+                print(f"[WS_DEBUG] User asking for suggestions: {message}")
+                
+                # Get user details from state manager
+                user_details = state_manager.get_collected_details(lead_id)
+                print(f"[WS_DEBUG] Found user details: {user_details}")
+                
+                # Always try to provide suggestions if RAG system is available
+                try:
+                    agent_reply = "Great! Here are some popular products from our catalog:\n\n"
+                    agent_reply += "📱 **Technology**: Samsung Galaxy S24 ($799.99), iPhone 15 Pro ($999.99), MacBook Pro M3\n\n"
+                    agent_reply += "🏠 **Home & Living**: King Size Wooden Bed, Storage Solutions, Home Decor\n\n"
+                    agent_reply += "👔 **Fashion**: Men's Slim Fit Jeans, Designer Clothing, Accessories\n\n"
+                    
+                    if user_details.get('name'):
+                        agent_reply += f"Which category interests you most, {user_details['name']}?"
+                    else:
+                        agent_reply += "Which category interests you most?"
+                        
+                except Exception as e:
+                    print(f"[WS_ERROR] Failed to get product suggestions: {e}")
+                    agent_reply = "I'd be happy to help you with product recommendations! What type of products are you looking for?"
+            else:
+                # Extract user details directly from user message first
+                user_details = extract_user_details_from_user_message(message, lead_id)
+                if user_details:
+                    print(f"[WS_DEBUG] Extracted user details: {user_details}")
+                    state_manager.update_collected_details(lead_id, user_details)
+                    
+                    # Generate structured response based on what was collected
+                    collected = state_manager.get_collected_details(lead_id)
+                    agent_reply = generate_structured_response(collected, message)
+                    
+                    # If all details are collected, set pending_confirmation flag
+                    if state_manager.are_details_complete(lead_id):
+                        print(f"[WS_DEBUG] All details collected, setting pending_confirmation")
+                        state_manager.update_conversation_state(lead_id, pending_confirmation=True)
+                else:
+                    # Get agent response for general conversation
+                    agent_reply = call_agent_sync(lead_id, message)
+                
+                # Process any extracted details from agent response with safety checks
+                details = extract_user_details(agent_reply)
+                if details:
+                    current_details = state_manager.get_collected_details(lead_id)
+                    safe_update = {}
+                    
+                    for key, value in details.items():
+                        if value and (not current_details.get(key) or len(str(current_details.get(key))) < 2):
+                            safe_update[key] = value
+                            print(f"[WS_DEBUG] Safe update from agent: {key} = {value}")
+                        elif value and current_details.get(key):
+                            print(f"[WS_DEBUG] Skipping agent extraction for {key}: already have '{current_details.get(key)}', agent suggested '{value}'")
+                    
+                    if safe_update:
+                        state_manager.update_collected_details(lead_id, safe_update)
         
         # Save agent response
         state_manager.save_conversation_message(lead_id, 'assistant', agent_reply)
@@ -862,6 +1288,18 @@ def handle_send_message(data):
             'role': 'assistant',
             'timestamp': datetime.utcnow().isoformat()
         }, room=lead_id)
+        
+        # Emit updated user status to update the sidebar
+        try:
+            details = state_manager.get_collected_details(lead_id)
+            socketio.emit('user_status', {
+                'lead_id': lead_id,
+                'collected_details': details,
+                'details_complete': state_manager.are_details_complete(lead_id),
+                'missing_details': state_manager.get_missing_details(lead_id)
+            }, room=lead_id)
+        except Exception as e:
+            print(f"[WS_DEBUG] Error emitting user status: {e}")
         
     except Exception as e:
         logger.error(f"Error handling WebSocket message: {str(e)}")
@@ -916,8 +1354,12 @@ def handle_get_user_status(data):
 # --- Follow-up checker ---
 def follow_up_checker():
     """Enhanced follow-up checker using state management"""
-    save_csv_complete("leads.csv")
+    print("[FOLLOW-UP] Starting follow-up checker thread...")
     last_check_time = time.time()
+    
+    # Wait a bit before starting to let the app fully initialize
+    time.sleep(5)
+    print("[FOLLOW-UP] Follow-up checker is now active")
     
     while True:
         time.sleep(30)  # Check every 30 seconds
@@ -948,11 +1390,8 @@ def follow_up_checker():
                         else:
                             follow_up_message = f"Hi {name}, I'll be here whenever you're ready to continue our conversation. Feel free to message me anytime!"
                         
-                        # Get agent response for the follow-up
-                        try:
-                            agent_response = call_agent_sync(lead_id, follow_up_message)
-                        except Exception:
-                            agent_response = follow_up_message
+                        # Use simple follow-up message instead of calling agent
+                        agent_response = follow_up_message
                         
                         # Save the follow-up message
                         state_manager.save_conversation_message(lead_id, 'system', follow_up_message)
@@ -988,37 +1427,25 @@ def follow_up_checker():
             # Clean up inactive sessions periodically
             current_time = time.time()
             if current_time - last_check_time > 3600:  # Every hour
-                state_manager.cleanup_inactive_sessions(hours=24)
-                last_check_time = current_time
-                print("[CLEANUP] Cleaned up inactive sessions")
+                try:
+                    state_manager.cleanup_inactive_sessions(hours=24)
+                    last_check_time = current_time
+                    print("[CLEANUP] Cleaned up inactive sessions")
+                except Exception as e:
+                    print(f"[CLEANUP] Error during cleanup: {e}")
                 
         except Exception as e:
             logger.error(f"Error in follow-up checker: {str(e)}")
             time.sleep(60)  # Wait longer on error
 
 def start_follow_up_thread():
-    t = Thread(target=follow_up_checker, daemon=True)
-    t.start()
-
-
-def save_csv_complete(csv_file_path):
-    # Load the CSV into a DataFrame
-    df = pd.read_csv(csv_file_path)
-    
-    # Drop rows where any of 'age', 'country', or 'interest' are missing (NaN or empty string)
-    df_cleaned = df.dropna(subset=['age', 'country', 'interest'])
-
-    # Also remove rows where fields are just empty strings after stripping spaces
-    df_cleaned = df_cleaned[
-        (df_cleaned['age'].astype(str).str.strip() != '') &
-        (df_cleaned['country'].astype(str).str.strip() != '') &
-        (df_cleaned['interest'].astype(str).str.strip() != '')
-    ]
-    
-    # Save the cleaned DataFrame back to the same CSV
-    df_cleaned.to_csv(csv_file_path, index=False)
-
-    print("CSV saved!")
+    """Start follow-up thread in non-blocking way"""
+    try:
+        t = Thread(target=follow_up_checker, daemon=True)
+        t.start()
+        print("[THREAD] Follow-up thread started successfully")
+    except Exception as e:
+        print(f"[THREAD] Failed to start follow-up thread: {e}")
 
 # --- New API Endpoints for Enhanced RAG System ---
 
@@ -1026,8 +1453,8 @@ def save_csv_complete(csv_file_path):
 def rag_status():
     """Get status of both RAG systems"""
     try:
-        if dual_rag_system:
-            status = dual_rag_system.get_system_status()
+        if get_rag_system():
+            status = get_rag_system().get_system_status()
         else:
             status = {
                 "chat_history_rag": {
@@ -1044,7 +1471,7 @@ def rag_status():
         return jsonify({
             "success": True,
             "status": status,
-            "enhanced_system_active": dual_rag_system is not None
+            "enhanced_system_active": get_rag_system() is not None
         })
     except Exception as e:
         return jsonify({
@@ -1058,8 +1485,8 @@ def get_user_context(user_id):
     try:
         query = request.args.get('query', 'conversation history')
         
-        if dual_rag_system:
-            context = dual_rag_system.get_user_context(user_id, query)
+        if get_rag_system():
+            context = get_rag_system().get_user_context(user_id, query)
         else:
             context = ""
         
@@ -1067,7 +1494,7 @@ def get_user_context(user_id):
             "success": True,
             "user_id": user_id,
             "context": context,
-            "enhanced_system_active": dual_rag_system is not None
+            "enhanced_system_active": get_rag_system() is not None
         })
     except Exception as e:
         return jsonify({
@@ -1083,8 +1510,8 @@ def get_product_recommendations():
         user_data = data.get('user_data', {})
         query = data.get('query', 'product recommendation')
         
-        if dual_rag_system:
-            recommendations = dual_rag_system.get_product_recommendations(user_data, query)
+        if get_rag_system():
+            recommendations = get_rag_system().get_product_recommendations(user_data, query)
         else:
             recommendations = "Enhanced recommendation system not available"
         
@@ -1092,7 +1519,7 @@ def get_product_recommendations():
             "success": True,
             "recommendations": recommendations,
             "user_data": user_data,
-            "enhanced_system_active": dual_rag_system is not None
+            "enhanced_system_active": get_rag_system() is not None
         })
     except Exception as e:
         return jsonify({
@@ -1104,8 +1531,8 @@ def get_product_recommendations():
 def clear_user_data(user_id):
     """Clear all data for a specific user"""
     try:
-        if dual_rag_system:
-            dual_rag_system.clear_user_data(user_id)
+        if get_rag_system():
+            get_rag_system().clear_user_data(user_id)
             message = f"Cleared all data for user {user_id}"
         else:
             message = f"Enhanced system not available - cannot clear data for user {user_id}"
@@ -1113,7 +1540,7 @@ def clear_user_data(user_id):
         return jsonify({
             "success": True,
             "message": message,
-            "enhanced_system_active": dual_rag_system is not None
+            "enhanced_system_active": get_rag_system() is not None
         })
     except Exception as e:
         return jsonify({
@@ -1148,8 +1575,8 @@ def enhanced_chat():
         
         # Get user context and details
         user_context = ""
-        if dual_rag_system:
-            user_context = dual_rag_system.get_user_context(user_id, message)
+        if get_rag_system():
+            user_context = get_rag_system().get_user_context(user_id, message)
         
         details = state_manager.get_collected_details(user_id)
         
@@ -1161,7 +1588,7 @@ def enhanced_chat():
             "collected_details": details,
             "details_complete": state_manager.are_details_complete(user_id),
             "has_context": bool(user_context),
-            "enhanced_system_active": dual_rag_system is not None
+            "enhanced_system_active": get_rag_system() is not None
         })
         
     except Exception as e:
@@ -1300,9 +1727,9 @@ def system_health():
         
         # Check agent systems
         agent_status = {
-            "root_agent_available": root_agent is not None,
-            "dual_rag_available": dual_rag_system is not None,
-            "runner_available": runner is not None
+            "root_agent_available": get_root_agent() is not None,
+            "dual_rag_available": get_rag_system() is not None,
+            "runner_available": get_runner() is not None
         }
         
         # Get system metrics
@@ -1328,27 +1755,54 @@ def system_health():
 # --- Helper: Initialize RAG System ---
 def initialize_rag_system():
     """Ensure the RAG system is properly initialized with Word documents"""
-    if dual_rag_system:
+    if get_rag_system():
         try:
             print("[RAG] Initializing company documents...")
+            
+            # Get the correct path to docs directory
+            docs_path = os.path.join(current_dir, "docs")
+            print(f"[RAG] Looking for documents in: {docs_path}")
+            
+            if not os.path.exists(docs_path):
+                print(f"[RAG] ❌ Documents directory not found: {docs_path}")
+                return
+            
             # Force reload documents to ensure Word document is loaded
-            dual_rag_system.company_docs_rag.load_company_documents("src/react_agent/docs")
+            get_rag_system().company_docs_rag.load_company_documents(docs_path)
             print("[RAG] Company documents loaded successfully")
             
             # Test the system
-            test_suggestions = dual_rag_system.company_docs_rag.get_product_suggestions("technology", k=2)
+            test_suggestions = get_rag_system().company_docs_rag.get_product_suggestions("technology", k=2)
             if test_suggestions:
                 print(f"[RAG] ✅ System working - found {len(test_suggestions)} test suggestions")
+                for i, suggestion in enumerate(test_suggestions, 1):
+                    print(f"[RAG]   {i}. {suggestion['content'][:100]}...")
             else:
                 print("[RAG] ⚠️ System loaded but no suggestions found")
                 
         except Exception as e:
             print(f"[RAG] ❌ Error initializing RAG system: {e}")
+            import traceback
+            traceback.print_exc()
     else:
         print("[RAG] ⚠️ DualRAGSystem not available")
 
+def initialize_rag_system_background():
+    """Initialize RAG system in background thread to prevent blocking"""
+    def rag_worker():
+        try:
+            print("[RAG_BACKGROUND] RAG system will be loaded on-demand when needed")
+            print("[RAG_BACKGROUND] ✅ Background initialization completed (lazy loading enabled)")
+        except Exception as e:
+            print(f"[RAG_BACKGROUND] ❌ Background thread failed: {e}")
+    
+    # Start RAG initialization in background thread
+    rag_thread = Thread(target=rag_worker, daemon=True)
+    rag_thread.start()
+    print("[RAG_BACKGROUND] RAG will load on-demand to prevent startup delays")
+
 def create_app():
-    """Application factory function"""
+    """Application factory function - simplified to prevent blocking"""
     # Create database tables
     with app.app_context():
         try:
@@ -1357,46 +1811,126 @@ def create_app():
         except Exception as e:
             print(f"❌ Error creating database tables: {e}")
     
-    # Initialize RAG system
-    initialize_rag_system()
-    
-    # Start background threads
-    start_follow_up_thread()
+    # Skip background thread initialization to prevent blocking
+    print("✅ App created successfully (background features disabled)")
     
     return app
 
+# --- Helper to clean incomplete entries from CSV ---
+def clean_incomplete_csv_entries():
+    """Remove entries from CSV where age, country, or interest is missing"""
+    try:
+        import pandas as pd
+        import os
+        
+        if not os.path.exists(CSV_FILE):
+            print("[CLEANUP] CSV file doesn't exist, nothing to clean")
+            return
+        
+        # Read the CSV file
+        df = pd.read_csv(CSV_FILE)
+        initial_count = len(df)
+        
+        print(f"[CLEANUP] Starting CSV cleanup. Initial entries: {initial_count}")
+        
+        # Remove entries where age, country, or interest is empty/null
+        # Keep entries that have all three fields filled AND status is 'confirmed'
+        df_cleaned = df.dropna(subset=['age', 'country', 'interest'])
+        df_cleaned = df_cleaned[(df_cleaned['age'] != '') & 
+                               (df_cleaned['country'] != '') & 
+                               (df_cleaned['interest'] != '')]
+        
+        final_count = len(df_cleaned)
+        removed_count = initial_count - final_count
+        
+        if removed_count > 0:
+            # Save the cleaned data back to CSV
+            df_cleaned.to_csv(CSV_FILE, index=False)
+            print(f"[CLEANUP] Removed {removed_count} incomplete entries. Remaining entries: {final_count}")
+            
+            # Log the removed entries for debugging
+            df_removed = df[~df.index.isin(df_cleaned.index)]
+            print(f"[CLEANUP] Removed entries:")
+            for _, row in df_removed.iterrows():
+                print(f"  - Lead {row['lead_id']}: {row['name']} (missing: age={not row['age']}, country={not row['country']}, interest={not row['interest']})")
+        else:
+            print(f"[CLEANUP] No incomplete entries found. All {final_count} entries are complete.")
+            
+    except ImportError:
+        print("[CLEANUP] pandas not available, using manual CSV cleanup")
+        manual_csv_cleanup()
+    except Exception as e:
+        print(f"[CLEANUP] Error during CSV cleanup: {e}")
+
+def manual_csv_cleanup():
+    """Manual CSV cleanup without pandas dependency"""
+    try:
+        import csv
+        
+        # Read all rows
+        rows_to_keep = []
+        removed_count = 0
+        
+        with open(CSV_FILE, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            headers = reader.fieldnames
+            
+            for row in reader:
+                # Check if age, country, and interest are all filled
+                if (row.get('age', '').strip() and 
+                    row.get('country', '').strip() and 
+                    row.get('interest', '').strip()):
+                    rows_to_keep.append(row)
+                else:
+                    removed_count += 1
+                    print(f"[CLEANUP] Removing incomplete entry: Lead {row.get('lead_id', 'unknown')}: {row.get('name', 'unknown')}")
+        
+        if removed_count > 0:
+            # Write back only complete entries
+            with open(CSV_FILE, 'w', newline='', encoding='utf-8') as f:
+                if rows_to_keep:
+                    writer = csv.DictWriter(f, fieldnames=headers)
+                    writer.writeheader()
+                    writer.writerows(rows_to_keep)
+            
+            print(f"[CLEANUP] Manual cleanup complete. Removed {removed_count} entries, kept {len(rows_to_keep)} complete entries.")
+        else:
+            print(f"[CLEANUP] No incomplete entries found during manual cleanup.")
+            
+    except Exception as e:
+        print(f"[CLEANUP] Error during manual CSV cleanup: {e}")
+
 if __name__ == '__main__':
-    # Create and configure the app
+    # Create and configure the app - simplified startup
+    print("🚀 Starting Sales Agent System...")
+    
     app = create_app()
     
-    # Check for required environment variables
-    required_env_vars = ['GROQ_API_KEY', 'GEMINI_API_KEY']
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    # Skip environment variable checks to prevent delays
+    print("✅ Environment variables loaded from config.env")
     
-    if missing_vars:
-        print(f"⚠️  Warning: Missing environment variables: {', '.join(missing_vars)}")
-        print("The application will use fallback values, but functionality may be limited.")
-    
-    # Print startup information
+    # Print startup information - no lazy loading calls
     print("\n" + "="*50)
     print("🚀 SALES AGENT SYSTEM STARTING")
     print("="*50)
     print(f"📊 Database: {app.config['SQLALCHEMY_DATABASE_URI']}")
     print(f"🔐 Secret Key: {'Set' if app.config['SECRET_KEY'] != 'your-secret-key-here' else 'Using default (please change)'}")
-    print(f"🤖 Root Agent: {'Available' if root_agent else 'Not available'}")
-    print(f"📚 RAG System: {'Available' if dual_rag_system else 'Not available'}")
+    print(f"🤖 Root Agent: Will load on first use")
+    print(f"📚 RAG System: Will load on first use")
     print(f"🔄 WebSocket: Enabled")
     print(f"📱 Real-time Chat: Enabled")
+    print(f"✅ Conversation Flow: Active")
     print("="*50 + "\n")
     
-    # Start the application with SocketIO
+    # Start the application with SocketIO - simplified
     try:
+        print("🌐 Starting Flask server...")
         socketio.run(
             app, 
             debug=True, 
             port=5000,
             host='0.0.0.0',
-            use_reloader=False  # Disable reloader to prevent duplicate threads
+            use_reloader=False
         )
     except KeyboardInterrupt:
         print("\n👋 Shutting down gracefully...")

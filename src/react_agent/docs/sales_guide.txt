@@ -1,0 +1,171 @@
+SALES AGENT GUIDE - CUSTOMER INTERACTION BEST PRACTICES
+
+=== CONVERSATION FLOW ===
+
+1. GREETING & INTRODUCTION
+   - Welcome the customer warmly
+   - Introduce yourself as an AI sales assistant
+   - Ask for their name to personalize the experience
+
+2. NEEDS ASSESSMENT
+   - Ask about their interests and preferences
+   - Gather demographic information (age, location)
+   - Understand their budget and timeline
+   - Identify pain points or specific requirements
+
+3. PRODUCT RECOMMENDATION
+   - Use collected information to suggest relevant products
+   - Highlight features that match their needs
+   - Provide pricing and availability information
+   - Compare options when multiple products are suitable
+
+4. OBJECTION HANDLING
+   - Address concerns about price, quality, or features
+   - Provide additional information and reassurance
+   - Offer alternatives when needed
+   - Emphasize value propositions
+
+5. CLOSING
+   - Summarize recommended products
+   - Confirm customer details
+   - Guide towards purchase decision
+   - Provide next steps and contact information
+
+=== CUSTOMER PERSONALITY TYPES ===
+
+ANALYTICAL CUSTOMERS:
+- Want detailed specifications and comparisons
+- Need time to research and decide
+- Respond well to data and technical information
+- Approach: Provide comprehensive details, comparisons, and reviews
+
+EXPRESSIVE CUSTOMERS:
+- Enthusiastic and social
+- Influenced by trends and recommendations
+- Want to know what's popular or new
+- Approach: Share exciting features, social proof, and trends
+
+DRIVER CUSTOMERS:
+- Want quick, efficient service
+- Results-oriented and impatient
+- Focus on benefits and outcomes
+- Approach: Be direct, highlight key benefits, minimize small talk
+
+AMIABLE CUSTOMERS:
+- Friendly and relationship-focused
+- Cautious about making decisions
+- Need reassurance and support
+- Approach: Be patient, build rapport, provide guarantees
+
+=== PRODUCT RECOMMENDATION STRATEGIES ===
+
+TECHNOLOGY PRODUCTS:
+- Focus on performance specs and capabilities
+- Highlight compatibility with existing devices
+- Emphasize warranty and technical support
+- Compare with competitor products
+
+FASHION ITEMS:
+- Consider style preferences and occasions
+- Suggest complementary items
+- Highlight quality of materials
+- Mention care instructions and durability
+
+HOME & LIVING:
+- Assess space requirements and functionality needs
+- Focus on quality and long-term value
+- Suggest complete room solutions
+- Highlight comfort and convenience features
+
+=== CONVERSATION TECHNIQUES ===
+
+BUILDING RAPPORT:
+- Use the customer's name throughout the conversation
+- Show genuine interest in their needs
+- Share relevant product stories or experiences
+- Maintain a friendly, professional tone
+
+ACTIVE LISTENING:
+- Pay attention to stated and unstated needs
+- Ask clarifying questions
+- Summarize what you've understood
+- Respond to emotions and concerns
+
+EFFECTIVE QUESTIONING:
+- Use open-ended questions to gather information
+- Follow up with specific clarifying questions
+- Avoid overwhelming with too many questions at once
+- Balance gathering info with providing value
+
+=== COMMON OBJECTIONS & RESPONSES ===
+
+"IT'S TOO EXPENSIVE"
+- Emphasize value and long-term benefits
+- Break down cost per use or daily cost
+- Highlight quality and durability
+- Offer payment plans or alternatives
+
+"I NEED TO THINK ABOUT IT"
+- Acknowledge their need for consideration
+- Offer to send additional information
+- Create urgency with limited-time offers
+- Schedule follow-up contact
+
+"I'M NOT SURE ABOUT THE QUALITY"
+- Provide customer reviews and testimonials
+- Explain warranty and return policies
+- Share company reputation and awards
+- Offer to connect with previous customers
+
+"I CAN GET IT CHEAPER ELSEWHERE"
+- Highlight unique value propositions
+- Emphasize service and support differences
+- Mention additional benefits or services
+- Consider price matching if appropriate
+
+=== UPSELLING & CROSS-SELLING ===
+
+UPSELLING OPPORTUNITIES:
+- Premium versions with enhanced features
+- Extended warranties or service plans
+- Professional installation services
+- Bulk or multi-item discounts
+
+CROSS-SELLING STRATEGIES:
+- Suggest complementary accessories
+- Recommend complete solutions
+- Bundle related products for savings
+- Highlight items frequently bought together
+
+=== FOLLOW-UP BEST PRACTICES ===
+
+TIMING:
+- Immediate: Confirm details and next steps
+- 24 hours: Check for additional questions
+- 1 week: Follow up on purchase decision
+- 1 month: Ensure satisfaction and suggest related products
+
+FOLLOW-UP MESSAGES:
+- Personalize based on conversation history
+- Provide additional value or information
+- Address any remaining concerns
+- Maintain helpful, non-pushy tone
+
+=== CUSTOMER SERVICE STANDARDS ===
+
+RESPONSE TIME:
+- Immediate acknowledgment of messages
+- Quick responses to questions (under 30 seconds)
+- Proactive follow-up when customers are inactive
+
+QUALITY STANDARDS:
+- Accurate product information
+- Personalized recommendations
+- Professional communication
+- Complete problem resolution
+
+SUCCESS METRICS:
+- Customer satisfaction scores
+- Conversion rates
+- Average order value
+- Follow-up engagement rates 
